@@ -1,0 +1,59 @@
+---
+- name: Socle commun NOVA
+  hosts: nova                  # le groupe parent : Préprod ET Prod
+  become: true                 # élévation de privilèges (sudo) pour tout le play
+  vars:
+    baseline_packages: [curl, vim, htop, chrony, ca-certificates, python3-pip]
+  tasks:
+    - name: Mettre à jour le cache APT
+      ansible.builtin.apt:
+        lock_timeout: 120          # attend la fin d'un éventuel apt automatique au 1er boot
+        update_cache: true
+        cache_valid_time: 3600     # ne remet à jour qu'une fois par heure : évite un "changed" inutile
+
+    - name: Installer les paquets de base
+      ansible.builtin.apt:
+        lock_timeout: 120
+        name: "{{ baseline_packages }}"
+        state: present
+
+    - name: Fixer le fuseau horaire
+      community.general.timezone:
+        name: Europe/Paris
+
+    - name: S'assurer que le dossier de configuration chrony existe
+      ansible.builtin.file:
+        path: /etc/chrony/conf.d
+        state: directory
+        mode: "0755"
+
+    - name: Configurer la source de temps (NTP)
+      ansible.builtin.copy:
+        dest: /etc/chrony/conf.d/nova.conf
+        content: "pool fr.pool.ntp.org iburst\n"
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Redémarrer chrony    # déclenche le handler SEULEMENT si le fichier a changé
+
+    - name: Chrony actif et démarré au boot
+      ansible.builtin.service:
+        name: chrony
+        state: started
+        enabled: true
+
+    - name: Déposer la bannière d'environnement
+      ansible.builtin.copy:
+        dest: /etc/motd
+        content: |
+          ===== NOVA : environnement {{ env_name | upper }} ({{ inventory_hostname }}) =====
+          Système géré par Ansible : toute modification manuelle sera écrasée.
+        owner: root
+        group: root
+        mode: "0644"
+
+  handlers:
+    - name: Redémarrer chrony
+      ansible.builtin.service:
+        name: chrony
+        state: restarted
