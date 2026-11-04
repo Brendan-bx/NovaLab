@@ -1,0 +1,28 @@
+---
+- name: Installer git (requis par 'helm plugin install')
+  ansible.builtin.apt:
+    lock_timeout: 120
+    name: git
+    state: present
+
+- name: Installer les dépendances Python du module kubernetes.core.helm
+  ansible.builtin.pip:
+    name:
+      - kubernetes
+      - PyYAML
+    state: present
+
+- name: Installer le binaire Helm {{ helm_version }}
+  ansible.builtin.unarchive:
+    src: "https://get.helm.sh/helm-{{ helm_version }}-linux-amd64.tar.gz"
+    dest: /usr/local/bin
+    remote_src: true
+    extra_opts: ["--strip-components=1", "--wildcards", "*/helm"]
+    creates: /usr/local/bin/helm
+
+- name: Installer le plugin helm-diff (utile pour --check --diff)
+  kubernetes.core.helm_plugin:
+    plugin_path: https://github.com/databus23/helm-diff
+    # v3.13+ exige Helm 3.18 (champ platformHooks). Le TP fixe Helm 3.16.4.
+    plugin_version: v3.12.5
+    state: present
