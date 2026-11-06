@@ -88,4 +88,3 @@
     - name: Échec explicite (stoppe la promotion)
       ansible.builtin.fail:
         msg: "Déploiement invalide sur {{ env_name }} : retour à l'état précédent, promotion stoppée."
-

@@ -1,0 +1,36 @@
+# Conformité de la couche Kubernetes : valeurs attendues injectées depuis l'inventaire
+service:
+  k3s: { enabled: true, running: true }
+
+command:
+  # Goss 0.4.9 lit /proc/net/tcp (IPv4). k3s écoute l'API en IPv6 (*:6443),
+  # et le port 80 est un DNAT ServiceLB, pas un socket : curl le prouve.
+  api_6443:
+    exec: "ss -lnt | grep ':6443'"
+    exit-status: 0
+    stdout: ["6443"]
+  http_80:
+    exec: "curl -sf -o /dev/null -m 5 -w '%{http_code}' -H 'Host: hello.{{ .Vars.env }}.nova.local' http://127.0.0.1/"
+    exit-status: 0
+    stdout: ["200"]
+  node_ready:
+    exec: "k3s kubectl get nodes --no-headers"
+    exit-status: 0
+    stdout: ["Ready"]
+  # nombre de réplicas disponibles = valeur de l'inventaire
+  replicas_available:
+    exec: "k3s kubectl -n nova get deploy nova-hello -o jsonpath='{.status.availableReplicas}'"
+    exit-status: 0
+    stdout: ["{{ .Vars.replicas }}"]
+  # PSSI-09 : conteneur non privilégié, système de fichiers en lecture seule
+  readonly_rootfs:
+    exec: "k3s kubectl -n nova get deploy nova-hello -o jsonpath='{.spec.template.spec.containers[0].securityContext.readOnlyRootFilesystem}'"
+    exit-status: 0
+    stdout: ["true"]
+{{ if eq .Vars.netpol "true" }}
+  # PSSI-08 : isolation réseau applicative exigée en production
+  networkpolicy_present:
+    exec: "k3s kubectl -n nova get networkpolicy nova-hello -o name"
+    exit-status: 0
+    stdout: ["networkpolicy"]
+{{ end }}
