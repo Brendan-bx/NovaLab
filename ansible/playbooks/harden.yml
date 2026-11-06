@@ -1,0 +1,7 @@
+---
+- name: Durcissement
+  hosts: nova
+  become: true
+  roles:
+    - role: hardening
+      tags: [hardening]
